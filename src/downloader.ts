@@ -1,10 +1,12 @@
+import { Settings } from "./models/settings";
+
 const debug = require('debug')('dsd');
 const fs = require('fs');
 const fetch = require('node-fetch');
 const low = require('lowdb')
 const FileAsync = require('lowdb/adapters/FileAsync')
 const path = require('path');
-const settings = JSON.parse(fs.readFileSync('settings.json', 'utf8'));
+const settings:Settings = JSON.parse(fs.readFileSync('settings.json', 'utf8'));
 
 const authorize = async (user) => {
     let authResponse = await fetch('https://video.logi.com/api/accounts/authorization', {
@@ -103,7 +105,7 @@ const run = async() => {
 
     let accessories = await get_accessories(sessionCookie);
 
-    for(accessory of accessories) {
+    for(let accessory in accessories) {
 
         if(settings.devices.length > 0 && !(settings.devices.includes(accessory.accessoryId))) {
 
