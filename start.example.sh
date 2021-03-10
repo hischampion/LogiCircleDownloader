@@ -4,5 +4,5 @@ export DOWNLOAD_DIRECTORY="downloads"
 
 export DEBUG="dsd"
 
-node downloader.js
+npx tsc | node built/downloader.js
 
