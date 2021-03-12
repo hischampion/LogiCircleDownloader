@@ -1,4 +1,9 @@
+import { Stream } from "node:stream";
+import { Accessory } from "./models/accessory";
+import { Activity } from "./models/activity";
+import { DownloadedFile } from "./models/downloadedfile";
 import { Settings } from "./models/settings";
+import { User } from "./models/user";
 
 const debug = require('debug')('dsd');
 const fs = require('fs');
@@ -8,7 +13,7 @@ const FileAsync = require('lowdb/adapters/FileAsync')
 const path = require('path');
 const settings:Settings = JSON.parse(fs.readFileSync('settings.json', 'utf8'));
 
-const authorize = async (user) => {
+const authorize = async (user:User):Promise<string> => {
     let authResponse = await fetch('https://video.logi.com/api/accounts/authorization', {
         method: 'POST',
         headers: {
@@ -19,12 +24,12 @@ const authorize = async (user) => {
         body: JSON.stringify(user)
     });
 
-    let cookie = authResponse.headers.get('set-cookie');
+    let cookie:string = authResponse.headers.get('set-cookie');
     let sessionCookie = cookie.match(/prod_session=[^;]+/)[0];
     return sessionCookie;
 };
 
-const get_accessories = async (sessionCookie) => {
+const get_accessories = async (sessionCookie:string):Promise<Array<Accessory>> => {
     return await fetch('https://video.logi.com/api/accessories', {
         headers: {
             'Accept': 'application/json, text/plain, */*',
@@ -36,9 +41,9 @@ const get_accessories = async (sessionCookie) => {
     .then(response => response.json());
 };
 
-const get_activities = async (accessory, sessionCookie) => {
-    let activitiesList = [];
-    let activitiesResponse = { nextStartTime: null };
+const get_activities = async (accessory, sessionCookie:string):Promise<Array<Activity>> => {
+    let activitiesList = new Array<Activity>();
+    let activitiesResponse = { nextStartTime: null, activities: new Array<Activity>() };
 
     do {
         activitiesResponse = await fetch(`https://video.logi.com/api/accessories/${accessory.accessoryId}/activities`, 
@@ -68,7 +73,7 @@ const get_activities = async (accessory, sessionCookie) => {
     return activitiesList;
 };
 
-const download_activity = async(accessory, activity, sessionCookie) => {
+const download_activity = async(accessory, activity, sessionCookie:string):Promise<DownloadedFile> => {
     let url = `https://video.logi.com/api/accessories/${accessory.accessoryId}/activities/${activity.activityId}/mp4`;
     debug(`downloading ${url}`);
 
@@ -80,18 +85,18 @@ const download_activity = async(accessory, activity, sessionCookie) => {
     }).then(response => {
         let contentDisposition = response.headers.get('content-disposition');
         let filename = contentDisposition.match(/filename=([^;]+)/)[1];
-        return [filename, response.body];
+        return { filename, stream: response.body };
     });
 };
 
-const save_stream = async(filepath, stream) => {
+const save_stream = async(filepath:string, stream:Stream) => {
     stream.pipe(fs.createWriteStream(filepath)).on('close', () => {
         debug('saved', filepath);
     });
 };
 
 const run = async() => {
-    const user = {
+    const user:User = {
         email: process.env.LOGI_EMAIL,
         password: process.env.LOGI_PASS
     };
@@ -105,7 +110,7 @@ const run = async() => {
 
     let accessories = await get_accessories(sessionCookie);
 
-    for(let accessory in accessories) {
+    for(var accessory of accessories) {
 
         if(settings.devices.length > 0 && !(settings.devices.includes(accessory.accessoryId))) {
 
@@ -115,13 +120,13 @@ const run = async() => {
 
             let activities = await get_activities(accessory, sessionCookie);
         
-            for(activity of activities) {
+            for(var activity of activities) {
     
                 let found = db.get('downloadedActivities').indexOf(activity.activityId) > -1;
     
                 if(!found && activity.relevanceLevel >= settings.relevanceThreshold) {
 
-                    let [filename, stream] = await download_activity(accessory, activity, sessionCookie);
+                    let download:DownloadedFile = await download_activity(accessory, activity, sessionCookie);
 
                     let dir = download_directory;
 
@@ -146,9 +151,9 @@ const run = async() => {
                         dir = pathWithDevice;
                     }
 
-                    let filepath = path.join(dir, filename);
+                    let filepath = path.join(dir, download.filename);
                     
-                    save_stream(filepath, stream);
+                    save_stream(filepath, download.stream);
                     db.get('downloadedActivities').push(activity.activityId).write();
     
                 }
