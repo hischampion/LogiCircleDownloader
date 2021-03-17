@@ -26,7 +26,7 @@ async function run()
     const downloadsDirectory = process.env.DOWNLOAD_DIRECTORY;
     const db = await low(new FileAsync('db.json'));
 
-    await db.defaults({ downloadedActivities: [] }).write()
+    await db.defaults({ downloadedActivities: [] }).write();
 
     let accessories = await logitechEventProvider.getAccessories(user);
 
@@ -37,14 +37,14 @@ async function run()
             let activities = await logitechEventProvider.getActivities(accessory, user);
         
             for(var activity of activities) {   
-                let found = db.get('downloadedActivities').indexOf(activity.activityId) > -1;
+                let found = db.get('downloadedActivities').find({id: activity.activityId}).value();
     
                 if(!found && activity.relevanceLevel >= settings.relevanceThreshold) {
                     let download:DownloadedFile = await logitechEventProvider.downloadActivity(accessory, activity, user);
 
                     await SaveFile(downloadsDirectory, activity, accessory, download);
 
-                    db.get('downloadedActivities').push(activity.activityId).write();
+                    db.get('downloadedActivities').push({id: activity.activityId}).write();
                 }   
             }
         }
