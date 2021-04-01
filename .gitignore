@@ -1,5 +1,6 @@
 start.sh
 start.ps1
+settings.json
 node_modules
 downloads/*
 db.json
